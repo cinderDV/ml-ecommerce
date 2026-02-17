@@ -19,7 +19,7 @@ export default function CategoryHeader({
     <div className="relative">
 
       {/* Hero Section */}
-      <div className="relative h-[500px] w-full overflow-hidden">
+      <div className="relative h-[200px] w-full overflow-hidden">
         {/* Background Image */}
         <Image
           src={backgroundImage}
