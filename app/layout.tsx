@@ -46,7 +46,7 @@ export default function RootLayout({
       </head>
       <body className={plusJakarta.className}>
         <Header/>
-        <main className="min-h-screen">
+        <main className="relative z-0 min-h-screen">
           {children}
         </main>
         <Footer />
