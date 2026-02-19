@@ -203,3 +203,14 @@
 .button-pulse:hover {
   animation: button-pulse 1.5s ease-in-out infinite;
 }
+
+/* Badge del carrito — pop al cambiar cantidad */
+@keyframes badge-pop {
+  0% { transform: scale(0.5); opacity: 0; }
+  50% { transform: scale(1.25); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.badge-pop {
+  animation: badge-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}

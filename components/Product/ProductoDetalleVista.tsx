@@ -2,7 +2,8 @@
 
 import Image from "next/image";
 import { useState } from "react";
-import type { ProductoDetalle } from "@/lib/types/producto";
+import type { ProductoDetalle, CartItem } from "@/lib/types/producto";
+import { useCart } from "@/hooks/useCart";
 
 interface ProductoDetalleVistaProps {
   producto: ProductoDetalle;
@@ -10,7 +11,36 @@ interface ProductoDetalleVistaProps {
 
 export default function ProductoDetalleVista({ producto }: ProductoDetalleVistaProps) {
   const [imagenActiva, setImagenActiva] = useState(0);
-  const [varianteActiva, setVarianteActiva] = useState<number | null>(null);
+  const [varianteActiva, setVarianteActiva] = useState<number | null>(
+    producto.variants?.length === 1 ? 0 : null
+  );
+  const [errorVariante, setErrorVariante] = useState(false);
+  const { agregarAlCarrito } = useCart();
+
+  const tieneMultiplesVariantes = (producto.variants?.length ?? 0) > 1;
+  const requiereSeleccion = tieneMultiplesVariantes && varianteActiva === null;
+
+  const handleAgregar = () => {
+    if (requiereSeleccion) {
+      setErrorVariante(true);
+      return;
+    }
+
+    const variant = varianteActiva !== null ? producto.variants?.[varianteActiva] : undefined;
+    const item: CartItem = {
+      cartItemId: variant ? `${producto.id}-${variant.color}` : `${producto.id}`,
+      productId: producto.id,
+      name: producto.name,
+      slug: producto.slug,
+      price: producto.salePrice || producto.price,
+      originalPrice: producto.salePrice ? producto.price : undefined,
+      image: variant?.image || producto.imagenes[0],
+      quantity: 1,
+      variantColor: variant?.color,
+      variantHex: variant?.hex,
+    };
+    agregarAlCarrito(item);
+  };
 
   const discount = producto.salePrice
     ? Math.round(
@@ -115,11 +145,11 @@ export default function ProductoDetalleVista({ producto }: ProductoDetalleVistaP
           </div>
 
           {/* Variantes */}
-          {producto.variants && producto.variants.length > 0 && (
+          {tieneMultiplesVariantes && producto.variants ? (
             <div className="space-y-2.5">
               <p className="text-sm font-medium text-neutral-700">
                 Color:{" "}
-                <span className="font-normal text-neutral-500">
+                <span className={`font-normal ${errorVariante && varianteActiva === null ? "text-red-500" : "text-neutral-500"}`}>
                   {varianteActiva !== null
                     ? producto.variants[varianteActiva].color
                     : "Seleccionar"}
@@ -130,7 +160,7 @@ export default function ProductoDetalleVista({ producto }: ProductoDetalleVistaP
                   <button
                     key={variant.color}
                     title={variant.color}
-                    onClick={() => setVarianteActiva(i)}
+                    onClick={() => { setVarianteActiva(i); setErrorVariante(false); }}
                     className={`w-9 h-9 rounded-full border-2 cursor-pointer swatch-hover ${
                       varianteActiva === i
                         ? "border-neutral-900 scale-110"
@@ -140,6 +170,18 @@ export default function ProductoDetalleVista({ producto }: ProductoDetalleVistaP
                   />
                 ))}
               </div>
+              {errorVariante && varianteActiva === null && (
+                <p className="text-xs text-red-500">Selecciona un color para continuar</p>
+              )}
+            </div>
+          ) : (
+            <div>
+              <p className="text-sm font-medium text-neutral-700">
+                Color:{" "}
+                <span className="font-normal text-neutral-500">
+                  {producto.variants?.[0]?.color ?? "Variante única"}
+                </span>
+              </p>
             </div>
           )}
 
@@ -149,8 +191,15 @@ export default function ProductoDetalleVista({ producto }: ProductoDetalleVistaP
           </p>
 
           {/* Botón agregar al carrito */}
-          <button className="w-full bg-neutral-900 text-white text-sm font-semibold py-4 rounded-xl hover:bg-neutral-700 transition-colors cursor-pointer button-pulse">
-            Agregar al carrito
+          <button
+            onClick={handleAgregar}
+            className={`w-full text-sm font-semibold py-4 rounded-xl transition-colors cursor-pointer ${
+              requiereSeleccion
+                ? "bg-neutral-300 text-neutral-500"
+                : "bg-neutral-900 text-white hover:bg-neutral-700 button-pulse"
+            }`}
+          >
+            {requiereSeleccion ? "Selecciona un color" : "Agregar al carrito"}
           </button>
 
           {/* Detalles expandidos */}
@@ -193,8 +242,17 @@ export default function ProductoDetalleVista({ producto }: ProductoDetalleVistaP
 
       {/* Botón fijo en mobile */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/90 backdrop-blur-sm border-t border-neutral-100 lg:hidden z-40">
-        <button className="w-full bg-neutral-900 text-white text-sm font-semibold py-3.5 rounded-xl hover:bg-neutral-700 transition-colors cursor-pointer">
-          Agregar al carrito — ${producto.salePrice || producto.price}
+        <button
+          onClick={handleAgregar}
+          className={`w-full text-sm font-semibold py-3.5 rounded-xl transition-colors cursor-pointer ${
+            requiereSeleccion
+              ? "bg-neutral-300 text-neutral-500"
+              : "bg-neutral-900 text-white hover:bg-neutral-700"
+          }`}
+        >
+          {requiereSeleccion
+            ? "Selecciona un color"
+            : `Agregar al carrito — $${producto.salePrice || producto.price}`}
         </button>
       </div>
     </div>

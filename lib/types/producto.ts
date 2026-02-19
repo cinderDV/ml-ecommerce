@@ -29,3 +29,16 @@ export interface ProductoDetalle extends ProductCardProps {
   categorySlug: string;
   subcategory: string;
 }
+
+export interface CartItem {
+  cartItemId: string;
+  productId: number;
+  name: string;
+  slug: string;
+  price: string;
+  originalPrice?: string;
+  image: string;
+  quantity: number;
+  variantColor?: string;
+  variantHex?: string;
+}

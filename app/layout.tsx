@@ -4,6 +4,9 @@ import "./globals.css";
 
 import Footer from "@/components/layout/footer/Footer";
 import Header from "@/components/layout/header/Header";
+import { CartProvider } from "@/lib/contexts/CartContext";
+import { AuthProvider } from "@/lib/contexts/AuthContext";
+import CartDrawer from "@/components/cart/CartDrawer";
 
 // Serif Typography - For headings (Architectural Authority)
 const cormorant = Cormorant_Garamond({
@@ -45,11 +48,16 @@ export default function RootLayout({
         <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js" async />
       </head>
       <body className={plusJakarta.className}>
-        <Header/>
-        <main className="relative z-0 min-h-screen">
-          {children}
-        </main>
-        <Footer />
+        <AuthProvider>
+          <CartProvider>
+            <Header/>
+            <main className="relative z-0 min-h-screen">
+              {children}
+            </main>
+            <Footer />
+            <CartDrawer />
+          </CartProvider>
+        </AuthProvider>
       </body>
     </html>
   );

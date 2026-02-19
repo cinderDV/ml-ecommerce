@@ -3,12 +3,14 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
-import type { ProductVariant, ProductCardProps } from "@/lib/types/producto";
+import type { ProductVariant, ProductCardProps, CartItem } from "@/lib/types/producto";
+import { useCart } from "@/hooks/useCart";
 
 // Re-exportar para no romper imports existentes
 export type { ProductVariant, ProductCardProps };
 
 export default function ProductCard({
+  id,
   name,
   slug,
   price,
@@ -20,7 +22,27 @@ export default function ProductCard({
 }: ProductCardProps) {
   const [activeImage, setActiveImage] = useState(image);
   const [activeHoverImage, setActiveHoverImage] = useState(hoverImage);
-  const [activeVariant, setActiveVariant] = useState<number | null>(null);
+  const [activeVariant, setActiveVariant] = useState<number | null>(
+    variants && variants.length > 0 ? 0 : null
+  );
+  const { agregarAlCarrito } = useCart();
+
+  const handleAgregar = () => {
+    const variant = activeVariant !== null ? variants?.[activeVariant] : undefined;
+    const item: CartItem = {
+      cartItemId: variant ? `${id}-${variant.color}` : `${id}`,
+      productId: id,
+      name,
+      slug,
+      price: salePrice || price,
+      originalPrice: salePrice ? price : undefined,
+      image: variant?.image || activeImage,
+      quantity: 1,
+      variantColor: variant?.color,
+      variantHex: variant?.hex,
+    };
+    agregarAlCarrito(item);
+  };
 
   const discount = salePrice
     ? Math.round((1 - parseFloat(salePrice.replace(/\./g, "")) / parseFloat(price.replace(/\./g, ""))) * 100)
@@ -107,7 +129,10 @@ export default function ProductCard({
                 ${salePrice || price}
               </p>
             </div>
-            <button className="text-xs font-medium text-white bg-neutral-900 px-3 py-1.5 rounded-lg hover:bg-neutral-700 transition-colors cursor-pointer">
+            <button
+              onClick={handleAgregar}
+              className="text-xs font-medium text-white bg-neutral-900 px-3 py-1.5 rounded-lg hover:bg-neutral-700 transition-colors cursor-pointer"
+            >
               Agregar
             </button>
           </div>
