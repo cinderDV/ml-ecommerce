@@ -1,4 +1,5 @@
-import ProductCard, { type ProductCardProps } from "./ProductCard";
+import ProductCard from "./ProductCard";
+import type { ProductCardProps } from "@/lib/types/producto";
 import CategoryCard, { type CategoryCardProps } from "./CategoryCard";
 
 export type GridItem =

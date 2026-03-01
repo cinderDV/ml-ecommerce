@@ -81,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       // localStorage no disponible o datos corruptos
     }
-    setHydrated(true);
+    queueMicrotask(() => setHydrated(true));
   }, []);
 
   // Persistir cambios en localStorage (solo después de hidratar)
@@ -105,8 +105,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!encontrado) {
       return { ok: false, error: 'Email o contraseña incorrectos' };
     }
-    const { password: _, ...usuario } = encontrado;
-    dispatch({ type: 'LOGIN', payload: usuario });
+    const { id, nombre, apellido, email: userEmail } = encontrado;
+    dispatch({ type: 'LOGIN', payload: { id, nombre, apellido, email: userEmail } });
     return { ok: true };
   }, []);
 
@@ -123,8 +123,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password,
     };
     usuariosMock.push(nuevoUsuario);
-    const { password: _, ...usuario } = nuevoUsuario;
-    dispatch({ type: 'REGISTER', payload: usuario });
+    const { id: newId, nombre: newNombre, apellido: newApellido, email: newEmail } = nuevoUsuario;
+    dispatch({ type: 'REGISTER', payload: { id: newId, nombre: newNombre, apellido: newApellido, email: newEmail } });
     return { ok: true };
   }, []);
 

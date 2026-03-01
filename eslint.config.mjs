@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Legacy WP project (extracted for reference, not part of this app)
+    "mueblerialatina.cl/**",
   ]),
 ]);
 

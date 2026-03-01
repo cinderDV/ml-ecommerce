@@ -61,7 +61,7 @@ export default function CartItemRow({ item, compact = false }: CartItemRowProps)
                       style={{ backgroundColor: item.variantHex }}
                     />
                   )}
-                  <span className="text-xs text-neutral-500">{item.variantColor}</span>
+                  <span className="text-xs text-neutral-500">{item.variantLabel || item.variantColor}</span>
                 </div>
               )}
               {item.quantity > 1 && (
@@ -155,7 +155,7 @@ export default function CartItemRow({ item, compact = false }: CartItemRowProps)
                     style={{ backgroundColor: item.variantHex }}
                   />
                 )}
-                <span className="text-sm text-neutral-500">{item.variantColor}</span>
+                <span className="text-sm text-neutral-500">{item.variantLabel || item.variantColor}</span>
               </div>
             )}
             {item.originalPrice && (

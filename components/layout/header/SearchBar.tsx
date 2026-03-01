@@ -3,10 +3,9 @@
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { getTodosLosProductos } from "@/lib/data/productos";
+import { buscarProductosApi } from "@/lib/api/woocommerce";
+import { formatPrecioWc } from "@/lib/api/mappers";
 
-// Resultado de búsqueda simplificado.
-// Cuando conectemos WooCommerce, mapearemos su respuesta a esta forma.
 interface SearchResult {
   id: number;
   name: string;
@@ -15,27 +14,11 @@ interface SearchResult {
   image: string;
 }
 
-// Función que simula una búsqueda.
-// Más adelante esto será un fetch a WooCommerce:
-//   const res = await fetch(`${NEXT_PUBLIC_WC_URL}/wp-json/wc/v3/products?search=${query}`);
-//   const data = await res.json();
-function buscarProductos(query: string): SearchResult[] {
-  const termino = query.toLowerCase();
-  return getTodosLosProductos()
-    .filter((p) => p.name.toLowerCase().includes(termino))
-    .map((p) => ({
-      id: p.id,
-      name: p.name,
-      slug: p.slug,
-      price: p.salePrice || p.price,
-      image: p.image.replace("w=600", "w=100"),
-    }));
-}
-
 export default function SearchBar() {
   const [query, setQuery] = useState("");
   const [resultados, setResultados] = useState<SearchResult[]>([]);
   const [abierto, setAbierto] = useState(false);
+  const [buscando, setBuscando] = useState(false);
   const [placeholderCorto, setPlaceholderCorto] = useState(false);
   const contenedorRef = useRef<HTMLDivElement>(null);
 
@@ -52,11 +35,7 @@ export default function SearchBar() {
     return () => observer.disconnect();
   }, []);
 
-  // --- DEBOUNCE ---
-  // ¿Qué es? En vez de buscar en cada tecla (c-a-m-a = 4 búsquedas),
-  // esperamos 300ms después de que el usuario deja de escribir.
-  // Así solo hacemos 1 búsqueda con "cama".
-  // Esto es CRÍTICO cuando conectemos la API para no saturar el servidor.
+  // Debounce de 300ms + fetch a la API
   useEffect(() => {
     if (query.length < 2) {
       setResultados([]);
@@ -64,13 +43,29 @@ export default function SearchBar() {
       return;
     }
 
-    const timer = setTimeout(() => {
-      const encontrados = buscarProductos(query);
-      setResultados(encontrados);
-      setAbierto(true);
+    setBuscando(true);
+    const timer = setTimeout(async () => {
+      try {
+        const productos = await buscarProductosApi(query);
+        const mapped: SearchResult[] = productos.map((p) => ({
+          id: p.id,
+          name: p.name,
+          slug: p.slug,
+          price: formatPrecioWc(
+            p.on_sale ? p.prices.sale_price : p.prices.regular_price,
+            p.prices.currency_minor_unit,
+          ),
+          image: p.images[0]?.thumbnail ?? p.images[0]?.src ?? '',
+        }));
+        setResultados(mapped);
+        setAbierto(true);
+      } catch {
+        setResultados([]);
+      } finally {
+        setBuscando(false);
+      }
     }, 300);
 
-    // Cleanup: si el usuario sigue escribiendo, cancelamos el timer anterior
     return () => clearTimeout(timer);
   }, [query]);
 
@@ -89,7 +84,6 @@ export default function SearchBar() {
     <div ref={contenedorRef} className="relative">
       {/* Input de búsqueda */}
       <div className="flex items-center bg-neutral-100 rounded-xl px-3 py-1.5 gap-2 shadow-[inset_0_2px_4px_rgba(0,0,0,0.1),inset_0_1px_2px_rgba(0,0,0,0.08)]">
-        {/* Ícono de lupa (SVG inline para no agregar dependencias) */}
         <svg
           className="w-4 h-4 text-neutral-400 shrink-0"
           fill="none"
@@ -113,7 +107,11 @@ export default function SearchBar() {
       {/* Dropdown de resultados */}
       {abierto && (
         <div className="absolute top-full mt-2 w-80 bg-white rounded-xl shadow-[0_2px_3px_rgba(0,0,0,0.15),0_6px_10px_rgba(0,0,0,0.12)] overflow-hidden z-50">
-          {resultados.length > 0 ? (
+          {buscando ? (
+            <div className="px-4 py-6 text-center">
+              <p className="text-sm text-neutral-400">Buscando...</p>
+            </div>
+          ) : resultados.length > 0 ? (
             <ul>
               {resultados.map((producto) => (
                 <li key={producto.id}>

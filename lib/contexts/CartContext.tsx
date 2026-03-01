@@ -1,7 +1,32 @@
 'use client';
 
-import { createContext, useReducer, useEffect, useState, useCallback, type ReactNode } from 'react';
+import { createContext, useReducer, useEffect, useCallback, useRef, type ReactNode } from 'react';
 import type { CartItem } from '@/lib/types/producto';
+
+const STORAGE_KEY = 'ml-cart';
+
+// --- Helpers ---
+
+function parsePrecio(precio: string): number {
+  return parseFloat(precio.replace(/\./g, ''));
+}
+
+function formatPrecio(valor: number): string {
+  return valor.toLocaleString('es-CL');
+}
+
+function loadFromStorage(): CartItem[] {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveToStorage(items: CartItem[]) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+}
 
 // --- Estado ---
 
@@ -18,77 +43,66 @@ const initialState: CartState = {
 // --- Acciones ---
 
 type CartAction =
+  | { type: 'HYDRATE'; payload: CartItem[] }
   | { type: 'ADD_ITEM'; payload: CartItem }
   | { type: 'REMOVE_ITEM'; payload: string }
   | { type: 'UPDATE_QUANTITY'; payload: { cartItemId: string; quantity: number } }
-  | { type: 'CLEAR_CART' }
+  | { type: 'CLEAR' }
   | { type: 'OPEN_DRAWER' }
-  | { type: 'CLOSE_DRAWER' }
-  | { type: 'HYDRATE'; payload: CartItem[] };
+  | { type: 'CLOSE_DRAWER' };
 
 function cartReducer(state: CartState, action: CartAction): CartState {
   switch (action.type) {
-    case 'ADD_ITEM': {
-      const existing = state.items.find(i => i.cartItemId === action.payload.cartItemId);
-      if (existing) {
-        return {
-          ...state,
-          items: state.items.map(i =>
-            i.cartItemId === action.payload.cartItemId
-              ? { ...i, quantity: i.quantity + action.payload.quantity }
-              : i
-          ),
-          drawerOpen: true,
-        };
-      }
-      return {
-        ...state,
-        items: [...state.items, action.payload],
-        drawerOpen: true,
-      };
-    }
-    case 'REMOVE_ITEM':
-      return {
-        ...state,
-        items: state.items.filter(i => i.cartItemId !== action.payload),
-      };
-    case 'UPDATE_QUANTITY': {
-      if (action.payload.quantity <= 0) {
-        return {
-          ...state,
-          items: state.items.filter(i => i.cartItemId !== action.payload.cartItemId),
-        };
-      }
-      return {
-        ...state,
-        items: state.items.map(i =>
-          i.cartItemId === action.payload.cartItemId
-            ? { ...i, quantity: action.payload.quantity }
-            : i
-        ),
-      };
-    }
-    case 'CLEAR_CART':
-      return { ...state, items: [] };
-    case 'OPEN_DRAWER':
-      return { ...state, drawerOpen: true };
-    case 'CLOSE_DRAWER':
-      return { ...state, drawerOpen: false };
     case 'HYDRATE':
       return { ...state, items: action.payload };
+
+    case 'ADD_ITEM': {
+      const item = action.payload;
+      const existing = state.items.find(i => i.cartItemId === item.cartItemId);
+      const items = existing
+        ? state.items.map(i =>
+            i.cartItemId === item.cartItemId
+              ? { ...i, quantity: i.quantity + item.quantity }
+              : i
+          )
+        : [...state.items, item];
+      saveToStorage(items);
+      return { ...state, items };
+    }
+
+    case 'REMOVE_ITEM': {
+      const items = state.items.filter(i => i.cartItemId !== action.payload);
+      saveToStorage(items);
+      return { ...state, items };
+    }
+
+    case 'UPDATE_QUANTITY': {
+      const { cartItemId, quantity } = action.payload;
+      if (quantity <= 0) {
+        const items = state.items.filter(i => i.cartItemId !== cartItemId);
+        saveToStorage(items);
+        return { ...state, items };
+      }
+      const items = state.items.map(i =>
+        i.cartItemId === cartItemId ? { ...i, quantity } : i
+      );
+      saveToStorage(items);
+      return { ...state, items };
+    }
+
+    case 'CLEAR':
+      saveToStorage([]);
+      return { ...state, items: [] };
+
+    case 'OPEN_DRAWER':
+      return { ...state, drawerOpen: true };
+
+    case 'CLOSE_DRAWER':
+      return { ...state, drawerOpen: false };
+
     default:
       return state;
   }
-}
-
-// --- Helpers de precio ---
-
-function parsePrecio(precio: string): number {
-  return parseFloat(precio.replace(/\./g, ''));
-}
-
-function formatPrecio(valor: number): string {
-  return valor.toLocaleString('es-CL');
 }
 
 // --- Context ---
@@ -108,46 +122,23 @@ export interface CartContextValue {
 
 export const CartContext = createContext<CartContextValue | null>(null);
 
-const STORAGE_KEY = 'ml-cart';
-
 export function CartProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(cartReducer, initialState);
-  const [hydrated, setHydrated] = useState(false);
+  const hydratedRef = useRef(false);
 
-  // Hidratar desde localStorage
+  // Hidratar desde localStorage al montar
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const items = JSON.parse(stored) as CartItem[];
-        dispatch({ type: 'HYDRATE', payload: items });
-      }
-    } catch {
-      // localStorage no disponible o datos corruptos
+    if (hydratedRef.current) return;
+    hydratedRef.current = true;
+    const items = loadFromStorage();
+    if (items.length > 0) {
+      dispatch({ type: 'HYDRATE', payload: items });
     }
-    setHydrated(true);
   }, []);
 
-  // Persistir cambios en localStorage (solo después de hidratar)
-  useEffect(() => {
-    if (!hydrated) return;
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state.items));
-    } catch {
-      // localStorage lleno o no disponible
-    }
-  }, [state.items, hydrated]);
-
-  // Valores computados
-  const totalItems = state.items.reduce((sum, i) => sum + i.quantity, 0);
-
-  const subtotal = formatPrecio(
-    state.items.reduce((sum, i) => sum + parsePrecio(i.price) * i.quantity, 0)
-  );
-
-  // Funciones expuestas
   const agregarAlCarrito = useCallback((item: CartItem) => {
     dispatch({ type: 'ADD_ITEM', payload: item });
+    dispatch({ type: 'OPEN_DRAWER' });
   }, []);
 
   const eliminarDelCarrito = useCallback((cartItemId: string) => {
@@ -159,16 +150,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const vaciarCarrito = useCallback(() => {
-    dispatch({ type: 'CLEAR_CART' });
+    dispatch({ type: 'CLEAR' });
   }, []);
 
-  const abrirDrawer = useCallback(() => {
-    dispatch({ type: 'OPEN_DRAWER' });
-  }, []);
+  const abrirDrawer = useCallback(() => dispatch({ type: 'OPEN_DRAWER' }), []);
+  const cerrarDrawer = useCallback(() => dispatch({ type: 'CLOSE_DRAWER' }), []);
 
-  const cerrarDrawer = useCallback(() => {
-    dispatch({ type: 'CLOSE_DRAWER' });
-  }, []);
+  const totalItems = state.items.reduce((sum, item) => sum + item.quantity, 0);
+  const subtotal = formatPrecio(
+    state.items.reduce((sum, item) => sum + parsePrecio(item.price) * item.quantity, 0)
+  );
 
   return (
     <CartContext.Provider

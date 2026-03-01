@@ -5,16 +5,52 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/hooks/useCart';
+import { procesarPedido } from '@/lib/api/cart';
+import type { WcAddress } from '@/lib/api/types';
 
 interface FormErrors {
   [key: string]: string;
 }
 
+const REGIONES_CL = [
+  { code: 'CL-AP', name: 'Arica y Parinacota' },
+  { code: 'CL-TA', name: 'Tarapacá' },
+  { code: 'CL-AN', name: 'Antofagasta' },
+  { code: 'CL-AT', name: 'Atacama' },
+  { code: 'CL-CO', name: 'Coquimbo' },
+  { code: 'CL-VS', name: 'Valparaíso' },
+  { code: 'CL-RM', name: 'Metropolitana de Santiago' },
+  { code: 'CL-LI', name: "O'Higgins" },
+  { code: 'CL-ML', name: 'Maule' },
+  { code: 'CL-NB', name: 'Ñuble' },
+  { code: 'CL-BI', name: 'Biobío' },
+  { code: 'CL-AR', name: 'Araucanía' },
+  { code: 'CL-LR', name: 'Los Ríos' },
+  { code: 'CL-LL', name: 'Los Lagos' },
+  { code: 'CL-AI', name: 'Aysén' },
+  { code: 'CL-MA', name: 'Magallanes' },
+];
+
+const METODOS_PAGO = [
+  {
+    id: 'transbank_webpay_plus_rest',
+    label: 'Webpay Plus',
+    description: 'Tarjeta de crédito o débito (Transbank)',
+  },
+  {
+    id: 'bacs',
+    label: 'Transferencia bancaria',
+    description: 'Transferencia directa a nuestra cuenta',
+  },
+];
+
 export default function CheckoutContent() {
-  const { items, totalItems, subtotal } = useCart();
+  const { items, totalItems, subtotal, vaciarCarrito } = useCart();
   const router = useRouter();
   const [errors, setErrors] = useState<FormErrors>({});
   const [submitting, setSubmitting] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [selectedPayment, setSelectedPayment] = useState(METODOS_PAGO[0].id);
 
   if (items.length === 0) {
     return (
@@ -73,7 +109,25 @@ export default function CheckoutContent() {
     return errs;
   }
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  function buildAddress(form: HTMLFormElement): WcAddress {
+    const data = new FormData(form);
+    const depto = (data.get('depto') as string)?.trim() || '';
+    return {
+      first_name: (data.get('nombre') as string).trim(),
+      last_name: (data.get('apellido') as string).trim(),
+      company: '',
+      address_1: (data.get('direccion') as string).trim(),
+      address_2: depto,
+      city: (data.get('comuna') as string).trim(),
+      state: (data.get('region') as string).trim(),
+      postcode: (data.get('codigoPostal') as string).trim(),
+      country: 'CL',
+      email: (data.get('email') as string).trim(),
+      phone: (data.get('telefono') as string).trim(),
+    };
+  }
+
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
     const errs = validate(form);
@@ -86,8 +140,28 @@ export default function CheckoutContent() {
     }
 
     setErrors({});
+    setCheckoutError(null);
     setSubmitting(true);
-    router.push('/checkout/confirmacion');
+
+    try {
+      const address = buildAddress(form);
+
+      // procesarPedido: crea sesión WC → agrega items → checkout → limpia sesión
+      const response = await procesarPedido(items, selectedPayment, address);
+
+      // Limpiar carrito local
+      vaciarCarrito();
+
+      // Redirigir según resultado
+      if (response.payment_result.redirect_url) {
+        window.location.href = response.payment_result.redirect_url;
+      } else {
+        router.push(`/checkout/confirmacion?order_id=${response.order_id}`);
+      }
+    } catch (err) {
+      setCheckoutError(err instanceof Error ? err.message : 'Error al procesar el pedido');
+      setSubmitting(false);
+    }
   }
 
   const inputClass = 'w-full border border-neutral-200 rounded-xl px-4 py-3 text-sm text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent transition-shadow';
@@ -108,6 +182,13 @@ export default function CheckoutContent() {
       <h1 className="font-serif text-3xl md:text-4xl font-semibold text-neutral-900 tracking-tight mb-8">
         Finalizar compra
       </h1>
+
+      {/* Error general */}
+      {checkoutError && (
+        <div className="mb-6 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+          {checkoutError}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-12">
         {/* Formulario */}
@@ -205,13 +286,17 @@ export default function CheckoutContent() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="region" className={labelClass}>Región</label>
-                  <input
-                    type="text"
+                  <select
                     id="region"
                     name="region"
-                    placeholder="Región Metropolitana"
+                    defaultValue=""
                     className={`${inputClass} ${errors.region ? 'border-red-400 focus:ring-red-500' : ''}`}
-                  />
+                  >
+                    <option value="" disabled>Seleccionar región</option>
+                    {REGIONES_CL.map(r => (
+                      <option key={r.code} value={r.code}>{r.name}</option>
+                    ))}
+                  </select>
                   {errors.region && <p className={errorClass}>{errors.region}</p>}
                 </div>
                 <div>
@@ -246,19 +331,37 @@ export default function CheckoutContent() {
           {/* Método de pago */}
           <section>
             <h2 className="text-lg font-semibold text-neutral-900 mb-4">Método de pago</h2>
-            <div className="border-2 border-neutral-900 rounded-xl p-4 flex items-center gap-4 bg-neutral-50">
-              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-[#009ee3] shrink-0">
-                <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M2 7a2 2 0 012-2h16a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V7zm2 0v2h16V7H4zm0 4v6h16v-6H4zm2 2h4v2H6v-2z" />
-                </svg>
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-neutral-900">Mercado Pago</p>
-                <p className="text-xs text-neutral-500">Tarjeta de crédito, débito y más medios de pago</p>
-              </div>
-              <div className="w-5 h-5 rounded-full border-2 border-neutral-900 flex items-center justify-center shrink-0">
-                <div className="w-2.5 h-2.5 rounded-full bg-neutral-900" />
-              </div>
+            <div className="space-y-3">
+              {METODOS_PAGO.map(method => {
+                const isSelected = selectedPayment === method.id;
+                return (
+                  <button
+                    key={method.id}
+                    type="button"
+                    onClick={() => setSelectedPayment(method.id)}
+                    className={`w-full text-left border-2 rounded-xl p-4 flex items-center gap-4 transition-colors cursor-pointer ${
+                      isSelected
+                        ? 'border-neutral-900 bg-neutral-50'
+                        : 'border-neutral-200 hover:border-neutral-400'
+                    }`}
+                  >
+                    <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-neutral-900 shrink-0">
+                      <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M2 7a2 2 0 012-2h16a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V7zm2 0v2h16V7H4zm0 4v6h16v-6H4zm2 2h4v2H6v-2z" />
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-neutral-900">{method.label}</p>
+                      <p className="text-xs text-neutral-500">{method.description}</p>
+                    </div>
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                      isSelected ? 'border-neutral-900' : 'border-neutral-300'
+                    }`}>
+                      {isSelected && <div className="w-2.5 h-2.5 rounded-full bg-neutral-900" />}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </section>
 
@@ -268,7 +371,7 @@ export default function CheckoutContent() {
             disabled={submitting}
             className="lg:hidden w-full bg-neutral-900 text-white text-sm font-semibold py-3.5 rounded-xl hover:bg-neutral-700 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {submitting ? 'Procesando...' : 'Confirmar pedido'}
+            {submitting ? 'Procesando pago...' : 'Confirmar pedido'}
           </button>
         </form>
 
@@ -296,7 +399,7 @@ export default function CheckoutContent() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-neutral-900 truncate">{item.name}</p>
                     {item.variantColor && (
-                      <p className="text-xs text-neutral-400">{item.variantColor}</p>
+                      <p className="text-xs text-neutral-400">{item.variantLabel || item.variantColor}</p>
                     )}
                   </div>
                   <p className="text-sm font-medium text-neutral-900 shrink-0">${item.price}</p>
@@ -311,12 +414,12 @@ export default function CheckoutContent() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-neutral-500">Envío</span>
-                <span className="text-neutral-400">Por calcular</span>
+                <span className="text-neutral-500">Por calcular</span>
               </div>
             </div>
 
             <div className="border-t border-neutral-200 pt-4 flex items-center justify-between">
-              <span className="text-base font-semibold text-neutral-900">Total</span>
+              <span className="text-base font-semibold text-neutral-900">Subtotal</span>
               <span className="text-xl font-bold text-neutral-900">${subtotal}</span>
             </div>
 
@@ -326,7 +429,7 @@ export default function CheckoutContent() {
               disabled={submitting}
               className="hidden lg:block w-full bg-neutral-900 text-white text-sm font-semibold py-3.5 rounded-xl hover:bg-neutral-700 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {submitting ? 'Procesando...' : 'Confirmar pedido'}
+              {submitting ? 'Procesando pago...' : 'Confirmar pedido'}
             </button>
 
             <Link

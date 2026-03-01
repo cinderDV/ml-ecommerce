@@ -9,53 +9,36 @@ import SearchBar from './SearchBar';
 import { useCart } from '@/hooks/useCart';
 import { useAuth } from '@/hooks/useAuth';
 
-export default function Header() {
+export interface NavSubcategoria {
+  label: string;
+  href: string;
+}
+
+export interface NavCategory {
+  label: string;
+  slug: string;
+  href: string;
+  subcategorias: NavSubcategoria[];
+}
+
+interface HeaderProps {
+  categorias?: NavCategory[];
+}
+
+export default function Header({ categorias = [] }: HeaderProps) {
   const [openMenu, setOpenMenu] = useState(false);
   const [openUserMenu, setOpenUserMenu] = useState(false);
   const pathname = usePathname();
   const { totalItems, abrirDrawer } = useCart();
   const { usuario, estaAutenticado, cerrarSesion } = useAuth();
 
-  // Cada categoría tiene sus subcategorías.
-  // Cuando conectemos WooCommerce, esto vendrá de:
-  // GET /wp-json/wc/v3/products/categories?parent=ID
-  const navItems = [
-    {
-      label: 'Asientos',
-      href: '/asientos',
-      subcategorias: [
-        { label: 'Sofás', href: '/asientos#sofas' },
-        { label: 'Sillones', href: '/asientos#sillones' },
-        { label: 'Sillas', href: '/asientos#sillas' },
-        { label: 'Bancos', href: '/asientos#bancos' },
-      ],
-    },
-    {
-      label: 'Sala de Estar',
-      href: '/sala-de-estar',
-      subcategorias: [
-        { label: 'Mesas de Centro', href: '/sala-de-estar#mesas-de-centro' },
-        { label: 'Estanterías', href: '/sala-de-estar#estanterias' },
-        { label: 'Muebles de TV', href: '/sala-de-estar#muebles-tv' },
-      ],
-    },
-    {
-      label: 'Dormitorio',
-      href: '/dormitorio',
-      subcategorias: [
-        { label: 'Camas', href: '/dormitorio#camas' },
-        { label: 'Veladores', href: '/dormitorio#veladores' },
-        { label: 'Cómodas', href: '/dormitorio#comodas' },
-        { label: 'Clósets', href: '/dormitorio#closets' },
-      ],
-    },
-  ];
+  const navItems = categorias;
 
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
       <AnnouncementBar/>
       <div className="mx-auto max-w-8xl px-4 sm:px-6 lg:px-6">
-        
+
         <div className="flex items-center justify-between h-16 gap-8">
           {/* Logo */}
           <div className="flex-shrink-0">
@@ -79,7 +62,7 @@ export default function Header() {
               const activo = pathname.startsWith(item.href);
 
               return (
-                <div key={item.label} className="relative group/nav">
+                <div key={item.slug} className="relative group/nav">
                   <Link
                     href={item.href}
                     className={`nav-link text-[13px] font-medium inline-block tracking-wide ${
@@ -221,7 +204,7 @@ export default function Header() {
           {navItems.map(item => {
             const activo = pathname.startsWith(item.href);
             return (
-              <div key={item.label}>
+              <div key={item.slug}>
                 <Link
                   href={item.href}
                   className={`block text-sm py-1 ${

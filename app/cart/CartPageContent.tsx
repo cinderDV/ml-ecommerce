@@ -32,7 +32,7 @@ export default function CartPageContent() {
             Explora nuestro catálogo y agrega productos que te gusten.
           </p>
           <Link
-            href="/asientos"
+            href="/"
             className="inline-block bg-neutral-900 text-white text-sm font-semibold px-6 py-3 rounded-xl hover:bg-neutral-700 transition-colors"
           >
             Explorar productos
@@ -91,7 +91,7 @@ export default function CartPageContent() {
               </Link>
 
               <Link
-                href="/asientos"
+                href="/"
                 className="block text-center text-sm text-neutral-500 hover:text-neutral-900 transition-colors"
               >
                 Seguir comprando

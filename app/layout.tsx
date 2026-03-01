@@ -4,9 +4,12 @@ import "./globals.css";
 
 import Footer from "@/components/layout/footer/Footer";
 import Header from "@/components/layout/header/Header";
+import type { NavCategory } from "@/components/layout/header/Header";
 import { CartProvider } from "@/lib/contexts/CartContext";
 import { AuthProvider } from "@/lib/contexts/AuthContext";
 import CartDrawer from "@/components/cart/CartDrawer";
+import { getCategorias } from "@/lib/api/woocommerce";
+import { ordenCategorias, ordenSubcategorias } from "@/lib/api/orden";
 
 // Serif Typography - For headings (Architectural Authority)
 const cormorant = Cormorant_Garamond({
@@ -37,11 +40,39 @@ export const metadata: Metadata = {
   description: "Soluciones de mobiliario para distintos proyectos",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  let navCategorias: NavCategory[] = [];
+  try {
+    const wcCategorias = await getCategorias();
+
+    // Categorías raíz (parent === 0) que tengan productos directos o hijas con productos
+    const raiz = wcCategorias
+      .filter((c) => c.parent === 0)
+      .filter((c) => c.count > 0 || wcCategorias.some((h) => h.parent === c.id && h.count > 0))
+      .sort((a, b) => (ordenCategorias[a.slug] ?? 99) - (ordenCategorias[b.slug] ?? 99));
+
+    navCategorias = raiz.map((cat) => {
+      const hijas = wcCategorias
+        .filter((c) => c.parent === cat.id && c.count > 0)
+        .sort((a, b) => (ordenSubcategorias[a.slug] ?? 99) - (ordenSubcategorias[b.slug] ?? 99));
+      return {
+        label: cat.name,
+        slug: cat.slug,
+        href: `/categoria/${cat.slug}`,
+        subcategorias: hijas.map((h) => ({
+          label: h.name,
+          href: `/categoria/${cat.slug}#${h.slug}`,
+        })),
+      };
+    });
+  } catch {
+    // Si falla la API, el header se renderiza sin categorías
+  }
+
   return (
     <html lang="es" className={`${cormorant.variable} ${plusJakarta.variable} ${jetbrainsMono.variable}`}>
       <head>
@@ -50,7 +81,7 @@ export default function RootLayout({
       <body className={plusJakarta.className}>
         <AuthProvider>
           <CartProvider>
-            <Header/>
+            <Header categorias={navCategorias} />
             <main className="relative z-0 min-h-screen">
               {children}
             </main>

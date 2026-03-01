@@ -3,11 +3,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
-import type { ProductVariant, ProductCardProps, CartItem } from "@/lib/types/producto";
+import type { ProductCardProps, CartItem } from "@/lib/types/producto";
 import { useCart } from "@/hooks/useCart";
-
-// Re-exportar para no romper imports existentes
-export type { ProductVariant, ProductCardProps };
 
 export default function ProductCard({
   id,
@@ -30,8 +27,8 @@ export default function ProductCard({
   const handleAgregar = () => {
     const variant = activeVariant !== null ? variants?.[activeVariant] : undefined;
     const item: CartItem = {
-      cartItemId: variant ? `${id}-${variant.color}` : `${id}`,
-      productId: id,
+      cartItemId: variant?.variationId ? `${id}-${variant.variationId}` : `${id}`,
+      productId: variant?.variationId ?? id,
       name,
       slug,
       price: salePrice || price,
@@ -97,9 +94,9 @@ export default function ProductCard({
               </Link>
             </div>
 
-            {variants && variants.length > 0 && (
-              <div className="flex items-center gap-2">
-                {variants.map((variant, i) => (
+            {variants && variants.length > 1 && (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {variants.slice(0, 6).map((variant, i) => (
                   <button
                     key={variant.color}
                     title={variant.color}
@@ -108,14 +105,17 @@ export default function ProductCard({
                       setActiveHoverImage(variant.hoverImage);
                       setActiveVariant(i);
                     }}
-                    className={`w-7 h-7 rounded-full border-2 cursor-pointer swatch-hover ${
+                    className={`w-6 h-6 rounded-full border-2 cursor-pointer swatch-hover ${
                       activeVariant === i
-                        ? "border-neutral-900"
-                        : "border-neutral-200 hover:border-neutral-500"
-                    }`}
-                    style={{ backgroundColor: variant.hex }}
+                        ? "border-neutral-900 scale-110"
+                        : "border-neutral-200 hover:border-neutral-400"
+                    } transition-all`}
+                    style={{ backgroundColor: variant.hex || '#ccc' }}
                   />
                 ))}
+                {variants.length > 6 && (
+                  <span className="text-[10px] text-neutral-400">+{variants.length - 6}</span>
+                )}
               </div>
             )}
           </div>

@@ -3,9 +3,10 @@
 
 export interface ProductVariant {
   color: string;
-  hex: string;
+  hex?: string;
   image: string;
   hoverImage?: string;
+  variationId?: number;
 }
 
 export interface ProductCardProps {
@@ -20,14 +21,35 @@ export interface ProductCardProps {
   variants?: ProductVariant[];
 }
 
+export interface AttributeOption {
+  name: string;   // "Felpa Negro"
+  slug: string;   // "felpa-negro"
+  hex?: string;   // solo para tipo 'color'
+}
+
+export interface ProductAttributeGroup {
+  name: string;       // "Color", "Lado", "Color Brazo"
+  taxonomy: string;   // "pa_color", "pa_lado", "pa_color-brazo"
+  type: 'color' | 'button';
+  options: AttributeOption[];
+}
+
+export interface ProductVariationEntry {
+  id: number;
+  attributes: Record<string, string>; // taxonomy → slug
+}
+
 export interface ProductoDetalle extends ProductCardProps {
   descripcion: string;
-  caracteristicas: string[];
-  dimensiones: string;
-  material: string;
+  descripcionHtml?: string;
+  caracteristicas?: string[];
+  dimensiones?: string;
+  material?: string;
   imagenes: string[];
   categorySlug: string;
   subcategory: string;
+  attributeGroups?: ProductAttributeGroup[];
+  variationMap?: ProductVariationEntry[];
 }
 
 export interface CartItem {
@@ -41,4 +63,5 @@ export interface CartItem {
   quantity: number;
   variantColor?: string;
   variantHex?: string;
+  variantLabel?: string;
 }
